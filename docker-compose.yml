@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: marketmenu-postgres
+    environment:
+      POSTGRES_DB: marketmenu
+      POSTGRES_USER: marketmenu_user
+      POSTGRES_PASSWORD: marketmenu_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - marketmenu_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  marketmenu_postgres_data:
