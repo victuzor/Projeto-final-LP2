@@ -1,0 +1,45 @@
+### Health check
+GET http://localhost:8080/api/health
+
+
+### Criar mercado
+POST http://localhost:8080/api/markets
+Content-Type: application/json
+
+{
+  "name": "Nordestão",
+  "address": "Natal/RN"
+}
+
+
+### Listar mercados
+GET http://localhost:8080/api/markets
+
+
+### Criar categoria
+POST http://localhost:8080/api/categories
+Content-Type: application/json
+
+{
+  "name": "Laticínios"
+}
+
+
+### Listar categorias
+GET http://localhost:8080/api/categories
+
+
+### Criar produto
+POST http://localhost:8080/api/products
+Content-Type: application/json
+
+{
+  "name": "Leite Integral 1L",
+  "brand": "Italac",
+  "barcode": "789000000001",
+  "categoryId": 1
+}
+
+
+### Listar produtos
+GET http://localhost:8080/api/products
