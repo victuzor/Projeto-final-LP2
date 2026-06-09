@@ -6,17 +6,13 @@ import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-public record PurchaseItemRequest(
+public record PantryItemRequest(
         @NotNull(message = "O produto é obrigatório")
         Long productId,
 
         @NotNull(message = "A quantidade é obrigatória")
         @Positive(message = "A quantidade deve ser maior que zero")
         BigDecimal quantity,
-
-        @NotNull(message = "O preço unitário é obrigatório")
-        @Positive(message = "O preço unitário deve ser maior que zero")
-        BigDecimal unitPrice,
 
         LocalDate expirationDate
 ) {
