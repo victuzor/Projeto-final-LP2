@@ -19,4 +19,8 @@ public interface PantryItemRepository extends JpaRepository<PantryItem, Long> {
     );
 
     List<PantryItem> findByExpirationDateBeforeOrderByExpirationDateAsc(LocalDate date);
+
+    long countByExpirationDateBetween(LocalDate startDate, LocalDate endDate);
+
+    long countByExpirationDateBefore(LocalDate date);
 }
