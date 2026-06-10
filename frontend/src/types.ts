@@ -63,3 +63,26 @@ export type PurchaseResponse = {
   totalAmount: number;
   items: PurchaseItemResponse[];
 };
+
+export type MarketResponse = {
+  id: number;
+  name: string;
+  address: string | null;
+};
+
+export type ProductResponse = {
+  id: number;
+  name: string;
+  brand: string | null;
+  barcode: string | null;
+  categoryId: number | null;
+  categoryName: string | null;
+};
+
+export type PurchaseFormItem = {
+  productId: number;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  expirationDate: string;
+};
