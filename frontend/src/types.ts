@@ -45,3 +45,21 @@ export type MarketComparisonResponse = {
   missingItems: number;
   items: MarketComparisonItemResponse[];
 };
+
+export type PurchaseItemResponse = {
+  id: number;
+  productId: number;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+};
+
+export type PurchaseResponse = {
+  id: number;
+  marketId: number;
+  marketName: string;
+  purchaseDate: string;
+  totalAmount: number;
+  items: PurchaseItemResponse[];
+};
