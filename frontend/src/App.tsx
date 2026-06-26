@@ -46,6 +46,8 @@ function App() {
   const [selectedMarketId, setSelectedMarketId] = useState("");
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().slice(0, 10));
   const [selectedProductId, setSelectedProductId] = useState("");
+  const [purchaseProductSearch, setPurchaseProductSearch] = useState("");
+  const [showPurchaseProductOptions, setShowPurchaseProductOptions] = useState(false);
   const [quantity, setQuantity] = useState("1");
   const [unitPrice, setUnitPrice] = useState("");
   const [expirationDate, setExpirationDate] = useState("");
@@ -88,7 +90,10 @@ function App() {
         }
 
         if (productsResponse.data.length > 0) {
-          setSelectedProductId(String(productsResponse.data[0].id));
+          const firstProduct = productsResponse.data[0];
+
+          setSelectedProductId(String(firstProduct.id));
+          setPurchaseProductSearch(firstProduct.name);
         }
       } catch (error) {
         console.error("Erro ao carregar dados do MarketMenu", error);
@@ -110,9 +115,7 @@ function App() {
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
-      const matchesSearch = product.name
-        .toLowerCase()
-        .includes(productSearch.toLowerCase());
+      const matchesSearch = normalizeText(product.name).includes(normalizeText(productSearch));
 
       const matchesCategory =
         selectedCategory === "Todas" || product.categoryName === selectedCategory;
@@ -120,6 +123,24 @@ function App() {
       return matchesSearch && matchesCategory;
     });
   }, [products, productSearch, selectedCategory]);
+
+  const filteredPurchaseProducts = useMemo(() => {
+    const search = normalizeText(purchaseProductSearch);
+
+    if (!search) {
+      return products.slice(0, 12);
+    }
+
+    return products
+      .filter((product) => {
+        const name = normalizeText(product.name);
+        const category = normalizeText(product.categoryName ?? "");
+        const brand = normalizeText(product.brand ?? "");
+
+        return name.includes(search) || category.includes(search) || brand.includes(search);
+      })
+      .slice(0, 12);
+  }, [products, purchaseProductSearch]);
 
   const filteredPantryItems = useMemo(() => {
     if (pantryFilter === "expiring") {
@@ -134,6 +155,14 @@ function App() {
   }, [pantryItems, pantryFilter]);
 
   const checkedItemsCount = shoppingList.filter((item) => item.checked).length;
+
+  function normalizeText(value: string) {
+    return value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+  }
 
   function formatCurrency(value: number | null | undefined) {
     if (value === null || value === undefined) {
@@ -176,6 +205,12 @@ function App() {
   function openPantryWithFilter(filter: PantryFilter) {
     setPantryFilter(filter);
     setActiveTab("pantry");
+  }
+
+  function selectPurchaseProduct(product: ProductResponse) {
+    setSelectedProductId(String(product.id));
+    setPurchaseProductSearch(product.name);
+    setShowPurchaseProductOptions(false);
   }
 
   async function refreshData() {
@@ -816,22 +851,47 @@ function App() {
               </div>
 
               <div className="form-grid">
-                <label>
+                <label className="autocomplete-label">
                   Produto
-                  <select
-                    value={selectedProductId}
-                    onChange={(event) => setSelectedProductId(event.target.value)}
-                  >
-                    <option value="" disabled>
-                      Selecione um produto
-                    </option>
+                  <div className="autocomplete">
+                    <input
+                      type="text"
+                      value={purchaseProductSearch}
+                      onFocus={() => setShowPurchaseProductOptions(true)}
+                      onChange={(event) => {
+                        setPurchaseProductSearch(event.target.value);
+                        setSelectedProductId("");
+                        setShowPurchaseProductOptions(true);
+                      }}
+                      placeholder="Digite para buscar. Ex: leite, manteiga, arroz"
+                    />
 
-                    {products.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.name}
-                      </option>
-                    ))}
-                  </select>
+                    {showPurchaseProductOptions && (
+                      <div className="autocomplete-options">
+                        {filteredPurchaseProducts.length === 0 ? (
+                          <p className="autocomplete-empty">Nenhum produto encontrado.</p>
+                        ) : (
+                          filteredPurchaseProducts.map((product) => (
+                            <button
+                              key={product.id}
+                              type="button"
+                              className="autocomplete-option"
+                              onMouseDown={(event) => {
+                                event.preventDefault();
+                                selectPurchaseProduct(product);
+                              }}
+                            >
+                              <strong>{product.name}</strong>
+                              <span>
+                                {product.categoryName ?? "Sem categoria"}
+                                {product.brand ? ` • ${product.brand}` : ""}
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </label>
 
                 <label>
