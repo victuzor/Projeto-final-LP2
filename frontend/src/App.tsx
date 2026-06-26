@@ -3,9 +3,9 @@ import {
   AlertTriangle,
   CalendarClock,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   ClipboardCheck,
-  Coins,
   Home,
   Loader2,
   PackageSearch,
@@ -28,10 +28,12 @@ import type {
 } from "./types";
 import "./App.css";
 
-type ActiveTab = "home" | "pantry" | "list" | "checklist" | "purchase";
+type ActiveTab = "home" | "pantry" | "extract" | "list" | "checklist" | "purchase";
+type PantryFilter = "all" | "expiring" | "expired";
 
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("home");
+  const [pantryFilter, setPantryFilter] = useState<PantryFilter>("all");
 
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [expiringItems, setExpiringItems] = useState<PantryItemResponse[]>([]);
@@ -119,6 +121,18 @@ function App() {
     });
   }, [products, productSearch, selectedCategory]);
 
+  const filteredPantryItems = useMemo(() => {
+    if (pantryFilter === "expiring") {
+      return pantryItems.filter((item) => item.status === "VENCE_EM_BREVE");
+    }
+
+    if (pantryFilter === "expired") {
+      return pantryItems.filter((item) => item.status === "VENCIDO");
+    }
+
+    return pantryItems;
+  }, [pantryItems, pantryFilter]);
+
   const checkedItemsCount = shoppingList.filter((item) => item.checked).length;
 
   function formatCurrency(value: number | null | undefined) {
@@ -145,6 +159,23 @@ function App() {
     if (status === "VENCE_EM_BREVE") return "usar logo";
     if (status === "SEM_VALIDADE") return "sem validade";
     return "ok";
+  }
+
+  function getPantryFilterTitle() {
+    if (pantryFilter === "expiring") {
+      return "Vencendo em breve";
+    }
+
+    if (pantryFilter === "expired") {
+      return "Produtos vencidos";
+    }
+
+    return "Todos os itens";
+  }
+
+  function openPantryWithFilter(filter: PantryFilter) {
+    setPantryFilter(filter);
+    setActiveTab("pantry");
   }
 
   async function refreshData() {
@@ -242,6 +273,7 @@ function App() {
       setFormMessage("Compra registrada com sucesso.");
       await refreshData();
       setActiveTab("pantry");
+      setPantryFilter("all");
     } catch (error) {
       console.error("Erro ao registrar compra", error);
       setFormMessage("Não foi possível registrar a compra.");
@@ -363,33 +395,45 @@ function App() {
 
         {activeTab === "home" && (
           <>
-            <section className="spent-card">
+            <button
+              className="spent-card clickable-card"
+              onClick={() => setActiveTab("extract")}
+            >
               <div>
                 <p>Gastos do mês</p>
                 <strong>{formatCurrency(dashboard?.monthlySpent)}</strong>
                 <span>{dashboard?.purchasesInMonth ?? 0} compras registradas</span>
               </div>
               <ChevronRight size={24} />
-            </section>
+            </button>
 
             <section className="summary-grid">
-              <article className="summary-card">
+              <button
+                className="summary-card clickable-card"
+                onClick={() => openPantryWithFilter("all")}
+              >
                 <Home size={22} />
                 <strong>{dashboard?.pantryItemsCount ?? 0}</strong>
                 <span>itens na despensa</span>
-              </article>
+              </button>
 
-              <article className="summary-card warning">
+              <button
+                className="summary-card warning clickable-card"
+                onClick={() => openPantryWithFilter("expiring")}
+              >
                 <CalendarClock size={22} />
                 <strong>{dashboard?.expiringSoonCount ?? 0}</strong>
                 <span>vencendo em breve</span>
-              </article>
+              </button>
 
-              <article className="summary-card danger">
+              <button
+                className="summary-card danger clickable-card"
+                onClick={() => openPantryWithFilter("expired")}
+              >
                 <AlertTriangle size={22} />
                 <strong>{dashboard?.expiredItemsCount ?? 0}</strong>
                 <span>vencidos</span>
-              </article>
+              </button>
             </section>
 
             <section className="content-card">
@@ -425,24 +469,47 @@ function App() {
         {activeTab === "pantry" && (
           <>
             <section className="screen-header">
-              <p>Despensa e extrato</p>
-              <h2>Controle sem planilha</h2>
+              <p>Despensa</p>
+              <h2>{getPantryFilterTitle()}</h2>
+            </section>
+
+            <section className="filter-tabs">
+              <button
+                className={pantryFilter === "all" ? "active" : ""}
+                onClick={() => setPantryFilter("all")}
+              >
+                Todos
+              </button>
+
+              <button
+                className={pantryFilter === "expiring" ? "active" : ""}
+                onClick={() => setPantryFilter("expiring")}
+              >
+                Vencendo
+              </button>
+
+              <button
+                className={pantryFilter === "expired" ? "active" : ""}
+                onClick={() => setPantryFilter("expired")}
+              >
+                Vencidos
+              </button>
             </section>
 
             <section className="content-card">
               <div className="section-title">
                 <div>
-                  <p>Despensa</p>
-                  <h2>Itens cadastrados</h2>
+                  <p>Despensa digital</p>
+                  <h2>{filteredPantryItems.length} itens encontrados</h2>
                 </div>
                 <PackageSearch size={22} />
               </div>
 
-              {pantryItems.length === 0 ? (
-                <p className="empty">Nenhum item na despensa.</p>
+              {filteredPantryItems.length === 0 ? (
+                <p className="empty">Nenhum item encontrado nesse filtro.</p>
               ) : (
                 <div className="list">
-                  {pantryItems.map((item) => (
+                  {filteredPantryItems.map((item) => (
                     <article key={item.id} className="list-item">
                       <div>
                         <strong>{item.productName}</strong>
@@ -459,11 +526,35 @@ function App() {
                 </div>
               )}
             </section>
+          </>
+        )}
+
+        {activeTab === "extract" && (
+          <>
+            <section className="screen-header with-back">
+              <button className="back-button" onClick={() => setActiveTab("home")}>
+                <ChevronLeft size={20} />
+              </button>
+
+              <div>
+                <p>Extrato</p>
+                <h2>Histórico de compras</h2>
+              </div>
+            </section>
+
+            <section className="spent-card extract-total-card">
+              <div>
+                <p>Total do mês</p>
+                <strong>{formatCurrency(dashboard?.monthlySpent)}</strong>
+                <span>{dashboard?.purchasesInMonth ?? 0} compras registradas</span>
+              </div>
+              <ReceiptText size={24} />
+            </section>
 
             <section className="content-card">
               <div className="section-title">
                 <div>
-                  <p>Extrato</p>
+                  <p>Compras</p>
                   <h2>Últimas compras</h2>
                 </div>
                 <ReceiptText size={22} />
@@ -831,7 +922,7 @@ function App() {
 
         <nav className="bottom-nav">
           <button
-            className={activeTab === "home" ? "active" : ""}
+            className={activeTab === "home" || activeTab === "extract" ? "active" : ""}
             onClick={() => setActiveTab("home")}
           >
             Início
@@ -839,7 +930,10 @@ function App() {
 
           <button
             className={activeTab === "pantry" ? "active" : ""}
-            onClick={() => setActiveTab("pantry")}
+            onClick={() => {
+              setPantryFilter("all");
+              setActiveTab("pantry");
+            }}
           >
             Despensa
           </button>
