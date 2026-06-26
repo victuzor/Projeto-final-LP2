@@ -86,3 +86,11 @@ export type PurchaseFormItem = {
   unitPrice: number;
   expirationDate: string;
 };
+
+export type ShoppingListItem = {
+  productId: number;
+  productName: string;
+  categoryName: string | null;
+  quantity: number;
+  checked: boolean;
+};

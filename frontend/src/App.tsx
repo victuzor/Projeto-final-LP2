@@ -1,14 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CalendarClock,
+  CheckCircle2,
   ChevronRight,
+  ClipboardCheck,
   Coins,
   Home,
   Loader2,
   PackageSearch,
   Plus,
   ReceiptText,
+  Search,
   ShoppingBasket,
   ShoppingCart,
   Trash2,
@@ -16,17 +19,16 @@ import {
 import { api } from "./services/api";
 import type {
   DashboardResponse,
-  MarketComparisonResponse,
   MarketResponse,
   PantryItemResponse,
   ProductResponse,
   PurchaseFormItem,
   PurchaseResponse,
-  SmartListItemResponse,
+  ShoppingListItem,
 } from "./types";
 import "./App.css";
 
-type ActiveTab = "home" | "pantry" | "list" | "purchase";
+type ActiveTab = "home" | "pantry" | "list" | "checklist" | "purchase";
 
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("home");
@@ -35,24 +37,23 @@ function App() {
   const [expiringItems, setExpiringItems] = useState<PantryItemResponse[]>([]);
   const [pantryItems, setPantryItems] = useState<PantryItemResponse[]>([]);
   const [purchases, setPurchases] = useState<PurchaseResponse[]>([]);
-  const [smartList, setSmartList] = useState<SmartListItemResponse[]>([]);
-  const [marketComparison, setMarketComparison] = useState<MarketComparisonResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-
   const [markets, setMarkets] = useState<MarketResponse[]>([]);
   const [products, setProducts] = useState<ProductResponse[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [selectedMarketId, setSelectedMarketId] = useState("");
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().slice(0, 10));
-
   const [selectedProductId, setSelectedProductId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [unitPrice, setUnitPrice] = useState("");
   const [expirationDate, setExpirationDate] = useState("");
-
   const [purchaseItems, setPurchaseItems] = useState<PurchaseFormItem[]>([]);
   const [savingPurchase, setSavingPurchase] = useState(false);
   const [formMessage, setFormMessage] = useState("");
+
+  const [productSearch, setProductSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("Todas");
+  const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([]);
 
   useEffect(() => {
     async function loadData() {
@@ -62,8 +63,6 @@ function App() {
           expiringResponse,
           pantryResponse,
           purchasesResponse,
-          smartListResponse,
-          comparisonResponse,
           marketsResponse,
           productsResponse,
         ] = await Promise.all([
@@ -71,8 +70,6 @@ function App() {
           api.get<PantryItemResponse[]>("/pantry/expiring?days=7"),
           api.get<PantryItemResponse[]>("/pantry"),
           api.get<PurchaseResponse[]>("/purchases"),
-          api.get<SmartListItemResponse[]>("/smart-list"),
-          api.get<MarketComparisonResponse[]>("/smart-list/market-comparison"),
           api.get<MarketResponse[]>("/markets"),
           api.get<ProductResponse[]>("/products"),
         ]);
@@ -81,8 +78,6 @@ function App() {
         setExpiringItems(expiringResponse.data);
         setPantryItems(pantryResponse.data);
         setPurchases(purchasesResponse.data);
-        setSmartList(smartListResponse.data);
-        setMarketComparison(comparisonResponse.data);
         setMarkets(marketsResponse.data);
         setProducts(productsResponse.data);
 
@@ -102,6 +97,29 @@ function App() {
 
     loadData();
   }, []);
+
+  const categories = useMemo(() => {
+    const productCategories = products
+      .map((product) => product.categoryName)
+      .filter((category): category is string => Boolean(category));
+
+    return ["Todas", ...Array.from(new Set(productCategories)).sort()];
+  }, [products]);
+
+  const filteredProducts = useMemo(() => {
+    return products.filter((product) => {
+      const matchesSearch = product.name
+        .toLowerCase()
+        .includes(productSearch.toLowerCase());
+
+      const matchesCategory =
+        selectedCategory === "Todas" || product.categoryName === selectedCategory;
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [products, productSearch, selectedCategory]);
+
+  const checkedItemsCount = shoppingList.filter((item) => item.checked).length;
 
   function formatCurrency(value: number | null | undefined) {
     if (value === null || value === undefined) {
@@ -135,23 +153,17 @@ function App() {
       expiringResponse,
       pantryResponse,
       purchasesResponse,
-      smartListResponse,
-      comparisonResponse,
     ] = await Promise.all([
       api.get<DashboardResponse>("/dashboard/monthly-summary"),
       api.get<PantryItemResponse[]>("/pantry/expiring?days=7"),
       api.get<PantryItemResponse[]>("/pantry"),
       api.get<PurchaseResponse[]>("/purchases"),
-      api.get<SmartListItemResponse[]>("/smart-list"),
-      api.get<MarketComparisonResponse[]>("/smart-list/market-comparison"),
     ]);
 
     setDashboard(dashboardResponse.data);
     setExpiringItems(expiringResponse.data);
     setPantryItems(pantryResponse.data);
     setPurchases(purchasesResponse.data);
-    setSmartList(smartListResponse.data);
-    setMarketComparison(comparisonResponse.data);
   }
 
   function addPurchaseItem() {
@@ -236,6 +248,91 @@ function App() {
     } finally {
       setSavingPurchase(false);
     }
+  }
+
+  function addProductToShoppingList(product: ProductResponse) {
+    setShoppingList((currentList) => {
+      const existingItem = currentList.find((item) => item.productId === product.id);
+
+      if (existingItem) {
+        return currentList.map((item) =>
+          item.productId === product.id
+            ? {
+                ...item,
+                quantity: item.quantity + 1,
+                checked: false,
+              }
+            : item
+        );
+      }
+
+      return [
+        ...currentList,
+        {
+          productId: product.id,
+          productName: product.name,
+          categoryName: product.categoryName,
+          quantity: 1,
+          checked: false,
+        },
+      ];
+    });
+  }
+
+  function removeProductFromShoppingList(productId: number) {
+    setShoppingList((currentList) =>
+      currentList.filter((item) => item.productId !== productId)
+    );
+  }
+
+  function increaseShoppingListQuantity(productId: number) {
+    setShoppingList((currentList) =>
+      currentList.map((item) =>
+        item.productId === productId
+          ? {
+              ...item,
+              quantity: item.quantity + 1,
+            }
+          : item
+      )
+    );
+  }
+
+  function decreaseShoppingListQuantity(productId: number) {
+    setShoppingList((currentList) =>
+      currentList
+        .map((item) =>
+          item.productId === productId
+            ? {
+                ...item,
+                quantity: item.quantity - 1,
+              }
+            : item
+        )
+        .filter((item) => item.quantity > 0)
+    );
+  }
+
+  function toggleChecklistItem(productId: number) {
+    setShoppingList((currentList) =>
+      currentList.map((item) =>
+        item.productId === productId
+          ? {
+              ...item,
+              checked: !item.checked,
+            }
+          : item
+      )
+    );
+  }
+
+  function clearCheckedItems() {
+    setShoppingList((currentList) => currentList.filter((item) => !item.checked));
+  }
+
+  function clearShoppingList() {
+    setShoppingList([]);
+    setActiveTab("list");
   }
 
   if (loading) {
@@ -405,68 +502,169 @@ function App() {
         {activeTab === "list" && (
           <>
             <section className="screen-header">
-              <p>Lista inteligente</p>
-              <h2>Comprar melhor com dados</h2>
+              <p>Lista de mercado</p>
+              <h2>Monte sua compra antes de sair</h2>
             </section>
 
             <section className="content-card">
               <div className="section-title">
                 <div>
-                  <p>Sugestões</p>
-                  <h2>Próxima compra</h2>
+                  <p>Produtos</p>
+                  <h2>Adicionar à lista</h2>
                 </div>
                 <ShoppingCart size={22} />
               </div>
 
-              {smartList.length === 0 ? (
-                <p className="empty">Nenhuma sugestão no momento.</p>
-              ) : (
-                <div className="list">
-                  {smartList.map((item) => (
-                    <article key={item.productId} className="list-item">
-                      <div>
-                        <strong>{item.productName}</strong>
-                        <span>{item.reason}</span>
-                      </div>
-                      <span className="price">{formatCurrency(item.lastUnitPrice)}</span>
-                    </article>
-                  ))}
-                </div>
-              )}
+              <div className="search-box">
+                <Search size={18} />
+                <input
+                  value={productSearch}
+                  onChange={(event) => setProductSearch(event.target.value)}
+                  placeholder="Buscar produto"
+                />
+              </div>
+
+              <div className="category-scroll">
+                {categories.map((category) => (
+                  <button
+                    key={category}
+                    className={selectedCategory === category ? "category-chip active" : "category-chip"}
+                    onClick={() => setSelectedCategory(category)}
+                  >
+                    {category}
+                  </button>
+                ))}
+              </div>
+
+              <div className="product-catalog">
+                {filteredProducts.map((product) => (
+                  <article key={product.id} className="catalog-item">
+                    <div>
+                      <strong>{product.name}</strong>
+                      <span>{product.categoryName ?? "Sem categoria"}</span>
+                    </div>
+
+                    <button
+                      className="small-add-button"
+                      onClick={() => addProductToShoppingList(product)}
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </article>
+                ))}
+              </div>
             </section>
 
             <section className="content-card">
               <div className="section-title">
                 <div>
-                  <p>Mercados</p>
-                  <h2>Melhor cesta estimada</h2>
+                  <p>Sua lista</p>
+                  <h2>{shoppingList.length} produtos adicionados</h2>
                 </div>
-                <Coins size={22} />
+                <ClipboardCheck size={22} />
               </div>
 
-              {marketComparison.length === 0 ? (
-                <p className="empty">Ainda não há preços suficientes para comparar.</p>
+              {shoppingList.length === 0 ? (
+                <p className="empty">Adicione produtos para montar sua lista de mercado.</p>
               ) : (
-                <div className="list">
-                  {marketComparison.map((market, index) => (
-                    <article
-                      key={market.marketId}
-                      className={index === 0 ? "market-card best" : "market-card"}
+                <>
+                  <div className="list">
+                    {shoppingList.map((item) => (
+                      <article key={item.productId} className="shopping-list-item">
+                        <div>
+                          <strong>{item.productName}</strong>
+                          <span>{item.categoryName ?? "Sem categoria"}</span>
+                        </div>
+
+                        <div className="quantity-control">
+                          <button onClick={() => decreaseShoppingListQuantity(item.productId)}>
+                            -
+                          </button>
+                          <span>{item.quantity}</span>
+                          <button onClick={() => increaseShoppingListQuantity(item.productId)}>
+                            +
+                          </button>
+                        </div>
+
+                        <button
+                          className="icon-button"
+                          onClick={() => removeProductFromShoppingList(item.productId)}
+                          aria-label="Remover produto"
+                        >
+                          <Trash2 size={17} />
+                        </button>
+                      </article>
+                    ))}
+                  </div>
+
+                  <button
+                    className="submit-action"
+                    onClick={() => setActiveTab("checklist")}
+                  >
+                    Abrir checklist no mercado
+                  </button>
+                </>
+              )}
+            </section>
+          </>
+        )}
+
+        {activeTab === "checklist" && (
+          <>
+            <section className="screen-header">
+              <p>Checklist de compra</p>
+              <h2>Marque o que já pegou</h2>
+            </section>
+
+            <section className="content-card">
+              <div className="section-title">
+                <div>
+                  <p>Progresso</p>
+                  <h2>
+                    {checkedItemsCount} de {shoppingList.length} itens marcados
+                  </h2>
+                </div>
+                <CheckCircle2 size={22} />
+              </div>
+
+              {shoppingList.length === 0 ? (
+                <p className="empty">Sua lista está vazia.</p>
+              ) : (
+                <div className="checklist">
+                  {shoppingList.map((item) => (
+                    <label
+                      key={item.productId}
+                      className={item.checked ? "checklist-item checked" : "checklist-item"}
                     >
+                      <input
+                        type="checkbox"
+                        checked={item.checked}
+                        onChange={() => toggleChecklistItem(item.productId)}
+                      />
                       <div>
-                        <strong>{market.marketName}</strong>
+                        <strong>{item.productName}</strong>
                         <span>
-                          {market.availableItems} itens com preço • {market.missingItems} sem preço
+                          {item.quantity} un. • {item.categoryName ?? "Sem categoria"}
                         </span>
                       </div>
-                      <div className="market-price">
-                        {index === 0 && <small>melhor opção</small>}
-                        <strong>{formatCurrency(market.estimatedTotal)}</strong>
-                      </div>
-                    </article>
+                    </label>
                   ))}
                 </div>
               )}
+
+              <div className="checklist-actions">
+                <button className="secondary-action" onClick={() => setActiveTab("list")}>
+                  Voltar para lista
+                </button>
+
+                <button className="primary-action" onClick={clearCheckedItems}>
+                  Remover marcados
+                </button>
+
+                <button className="danger-action" onClick={clearShoppingList}>
+                  Limpar lista
+                </button>
+              </div>
             </section>
           </>
         )}
@@ -494,6 +692,10 @@ function App() {
                     value={selectedMarketId}
                     onChange={(event) => setSelectedMarketId(event.target.value)}
                   >
+                    <option value="" disabled>
+                      Selecione um mercado
+                    </option>
+
                     {markets.map((market) => (
                       <option key={market.id} value={market.id}>
                         {market.name}
@@ -529,6 +731,10 @@ function App() {
                     value={selectedProductId}
                     onChange={(event) => setSelectedProductId(event.target.value)}
                   >
+                    <option value="" disabled>
+                      Selecione um produto
+                    </option>
+
                     {products.map((product) => (
                       <option key={product.id} value={product.id}>
                         {product.name}
@@ -639,7 +845,7 @@ function App() {
           </button>
 
           <button
-            className={activeTab === "list" ? "active" : ""}
+            className={activeTab === "list" || activeTab === "checklist" ? "active" : ""}
             onClick={() => setActiveTab("list")}
           >
             Lista
