@@ -75,6 +75,15 @@ public class PantryService {
                 .toList();
     }
 
+    @Transactional
+    public void deleteById(Long id) {
+        if (!pantryItemRepository.existsById(id)) {
+            throw new RuntimeException("Item da despensa não encontrado");
+        }
+
+        pantryItemRepository.deleteById(id);
+    }
+
     private PantryItemResponse toResponse(PantryItem pantryItem) {
         Product product = pantryItem.getProduct();
 

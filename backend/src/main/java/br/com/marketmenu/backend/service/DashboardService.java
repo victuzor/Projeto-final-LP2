@@ -32,7 +32,7 @@ public class DashboardService {
         long purchasesInMonth = purchaseRepository
                 .countByPurchaseDateBetween(startDate, endDate);
 
-        long pantryItemsCount = pantryItemRepository.count();
+        long pantryItemsCount = pantryItemRepository.countAvailableItems(today);
 
         long expiringSoonCount = pantryItemRepository
                 .countByExpirationDateBetween(today, today.plusDays(7));

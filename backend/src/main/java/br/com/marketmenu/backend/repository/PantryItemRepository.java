@@ -4,8 +4,8 @@ import br.com.marketmenu.backend.domain.PantryItem;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import java.math.BigDecimal;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -28,9 +28,17 @@ public interface PantryItemRepository extends JpaRepository<PantryItem, Long> {
     long countByExpirationDateBefore(LocalDate date);
 
     @Query("""
-        SELECT SUM(p.quantity)
-        FROM PantryItem p
-        WHERE p.product.id = :productId
-        """)
+            SELECT COUNT(p)
+            FROM PantryItem p
+            WHERE p.expirationDate IS NULL
+            OR p.expirationDate >= :today
+            """)
+    long countAvailableItems(@Param("today") LocalDate today);
+
+    @Query("""
+            SELECT SUM(p.quantity)
+            FROM PantryItem p
+            WHERE p.product.id = :productId
+            """)
     BigDecimal sumQuantityByProductId(@Param("productId") Long productId);
 }

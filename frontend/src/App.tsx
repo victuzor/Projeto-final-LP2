@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CalendarClock,
@@ -42,6 +42,7 @@ function App() {
   const [markets, setMarkets] = useState<MarketResponse[]>([]);
   const [products, setProducts] = useState<ProductResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pantryMessage, setPantryMessage] = useState("");
 
   const [selectedMarketId, setSelectedMarketId] = useState("");
   const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().slice(0, 10));
@@ -59,51 +60,70 @@ function App() {
   const [selectedCategory, setSelectedCategory] = useState("Todas");
   const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([]);
 
+  const autocompleteRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
-    async function loadData() {
-      try {
-        const [
-          dashboardResponse,
-          expiringResponse,
-          pantryResponse,
-          purchasesResponse,
-          marketsResponse,
-          productsResponse,
-        ] = await Promise.all([
-          api.get<DashboardResponse>("/dashboard/monthly-summary"),
-          api.get<PantryItemResponse[]>("/pantry/expiring?days=7"),
-          api.get<PantryItemResponse[]>("/pantry"),
-          api.get<PurchaseResponse[]>("/purchases"),
-          api.get<MarketResponse[]>("/markets"),
-          api.get<ProductResponse[]>("/products"),
-        ]);
+    loadData();
+  }, []);
 
-        setDashboard(dashboardResponse.data);
-        setExpiringItems(expiringResponse.data);
-        setPantryItems(pantryResponse.data);
-        setPurchases(purchasesResponse.data);
-        setMarkets(marketsResponse.data);
-        setProducts(productsResponse.data);
-
-        if (marketsResponse.data.length > 0) {
-          setSelectedMarketId(String(marketsResponse.data[0].id));
-        }
-
-        if (productsResponse.data.length > 0) {
-          const firstProduct = productsResponse.data[0];
-
-          setSelectedProductId(String(firstProduct.id));
-          setPurchaseProductSearch(firstProduct.name);
-        }
-      } catch (error) {
-        console.error("Erro ao carregar dados do MarketMenu", error);
-      } finally {
-        setLoading(false);
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        autocompleteRef.current &&
+        !autocompleteRef.current.contains(event.target as Node)
+      ) {
+        setShowPurchaseProductOptions(false);
       }
     }
 
-    loadData();
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, []);
+
+  async function loadData() {
+    try {
+      const [
+        dashboardResponse,
+        expiringResponse,
+        pantryResponse,
+        purchasesResponse,
+        marketsResponse,
+        productsResponse,
+      ] = await Promise.all([
+        api.get<DashboardResponse>("/dashboard/monthly-summary"),
+        api.get<PantryItemResponse[]>("/pantry/expiring?days=7"),
+        api.get<PantryItemResponse[]>("/pantry"),
+        api.get<PurchaseResponse[]>("/purchases"),
+        api.get<MarketResponse[]>("/markets"),
+        api.get<ProductResponse[]>("/products"),
+      ]);
+
+      setDashboard(dashboardResponse.data);
+      setExpiringItems(expiringResponse.data);
+      setPantryItems(pantryResponse.data);
+      setPurchases(purchasesResponse.data);
+      setMarkets(marketsResponse.data);
+      setProducts(productsResponse.data);
+
+      if (marketsResponse.data.length > 0) {
+        setSelectedMarketId(String(marketsResponse.data[0].id));
+      }
+
+      if (productsResponse.data.length > 0) {
+        const firstProduct = productsResponse.data[0];
+
+        setSelectedProductId(String(firstProduct.id));
+        setPurchaseProductSearch(firstProduct.name);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar dados do MarketMenu", error);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const categories = useMemo(() => {
     const productCategories = products
@@ -151,7 +171,7 @@ function App() {
       return pantryItems.filter((item) => item.status === "VENCIDO");
     }
 
-    return pantryItems;
+    return pantryItems.filter((item) => item.status !== "VENCIDO");
   }, [pantryItems, pantryFilter]);
 
   const checkedItemsCount = shoppingList.filter((item) => item.checked).length;
@@ -199,11 +219,12 @@ function App() {
       return "Produtos vencidos";
     }
 
-    return "Todos os itens";
+    return "Itens disponíveis";
   }
 
   function openPantryWithFilter(filter: PantryFilter) {
     setPantryFilter(filter);
+    setPantryMessage("");
     setActiveTab("pantry");
   }
 
@@ -230,6 +251,23 @@ function App() {
     setExpiringItems(expiringResponse.data);
     setPantryItems(pantryResponse.data);
     setPurchases(purchasesResponse.data);
+  }
+
+  async function removePantryItem(itemId: number) {
+    const confirmed = window.confirm("Remover este item da despensa?");
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await api.delete(`/pantry/${itemId}`);
+      setPantryMessage("Item removido da despensa.");
+      await refreshData();
+    } catch (error) {
+      console.error("Erro ao remover item da despensa", error);
+      setPantryMessage("Não foi possível remover o item.");
+    }
   }
 
   function addPurchaseItem() {
@@ -540,12 +578,14 @@ function App() {
                 <PackageSearch size={22} />
               </div>
 
+              {pantryMessage && <p className="form-message">{pantryMessage}</p>}
+
               {filteredPantryItems.length === 0 ? (
                 <p className="empty">Nenhum item encontrado nesse filtro.</p>
               ) : (
                 <div className="list">
                   {filteredPantryItems.map((item) => (
-                    <article key={item.id} className="list-item">
+                    <article key={item.id} className="pantry-list-item">
                       <div>
                         <strong>{item.productName}</strong>
                         <span>
@@ -553,9 +593,20 @@ function App() {
                           {formatDate(item.expirationDate)}
                         </span>
                       </div>
-                      <span className={`badge status-${item.status.toLowerCase()}`}>
-                        {getStatusLabel(item.status)}
-                      </span>
+
+                      <div className="pantry-actions">
+                        <span className={`badge status-${item.status.toLowerCase()}`}>
+                          {getStatusLabel(item.status)}
+                        </span>
+
+                        <button
+                          className="icon-button"
+                          onClick={() => removePantryItem(item.id)}
+                          aria-label="Remover item da despensa"
+                        >
+                          <Trash2 size={17} />
+                        </button>
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -853,7 +904,7 @@ function App() {
               <div className="form-grid">
                 <label className="autocomplete-label">
                   Produto
-                  <div className="autocomplete">
+                  <div className="autocomplete" ref={autocompleteRef}>
                     <input
                       type="text"
                       value={purchaseProductSearch}
@@ -992,6 +1043,7 @@ function App() {
             className={activeTab === "pantry" ? "active" : ""}
             onClick={() => {
               setPantryFilter("all");
+              setPantryMessage("");
               setActiveTab("pantry");
             }}
           >

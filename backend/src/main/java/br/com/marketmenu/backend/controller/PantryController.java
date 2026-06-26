@@ -39,4 +39,10 @@ public class PantryController {
     public List<PantryItemResponse> findExpired() {
         return pantryService.findExpired();
     }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteById(@PathVariable Long id) {
+        pantryService.deleteById(id);
+    }
 }

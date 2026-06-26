@@ -230,7 +230,8 @@ button {
 }
 
 .list-item,
-.market-card {
+.market-card,
+.pantry-list-item {
   border: 1px solid #eee5ff;
   border-radius: 18px;
   padding: 14px;
@@ -240,18 +241,27 @@ button {
   gap: 12px;
 }
 
+.pantry-list-item strong,
 .list-item strong,
 .market-card strong {
   display: block;
   font-size: 0.96rem;
 }
 
+.pantry-list-item span,
 .list-item span,
 .market-card span {
   display: block;
   margin-top: 4px;
   color: #7c6a92;
   font-size: 0.82rem;
+}
+
+.pantry-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 
 .badge {
